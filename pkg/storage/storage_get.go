@@ -51,6 +51,8 @@ const (
 )
 
 func (s *Storage) Get(ctx context.Context, gi *GetInput) (*GetOutput, error) {
+	logrus.Infof("start storage.Get, gi: %s", gi.Query.AppName)
+	startTime := time.Now()
 	var t *trace.Task
 	ctx, t = trace.NewTask(ctx, traceTaskGet)
 	defer t.End()
@@ -106,18 +108,26 @@ func (s *Storage) Get(ctx context.Context, gi *GetInput) (*GetOutput, error) {
 			continue
 		}
 		key := parsedKey.SegmentKey()
+		allSegmetTime := time.Now()
 		allSegments, err := s.segments.LookupWithTimeLimit(key, gi.StartTime, gi.EndTime, gi.ProfileLimit)
 		if err != nil {
 			return nil, err
 		}
+		logrus.Infof("allSegments key: %s, const time: %f s", key, time.Since(allSegmetTime).Seconds())
+
+		dictsTime := time.Now()
 		_, err = s.dicts.LookupWithTimeLimit(key, gi.StartTime, gi.EndTime, gi.ProfileLimit)
 		if err != nil {
 			return nil, err
 		}
+		logrus.Infof("dicts key: %s, const time: %f s", key, time.Since(dictsTime).Seconds())
+
+		treesTime := time.Now()
 		_, err = s.trees.LookupWithTimeLimit(key, gi.StartTime, gi.EndTime, gi.ProfileLimit)
 		if err != nil {
 			return nil, err
 		}
+		logrus.Infof("trees key: %s, const time: %f s", key, time.Since(treesTime).Seconds())
 		for _, segVal := range allSegments {
 			st := segVal.(*segment.Segment)
 			timelineKey := "*"
@@ -161,6 +171,7 @@ func (s *Storage) Get(ctx context.Context, gi *GetInput) (*GetOutput, error) {
 	case averageAggregationType, "avg":
 		resultTrie = resultTrie.Clone(big.NewRat(1, int64(writesTotal)))
 	}
+	logrus.Infof("end storage.Get, gi: %s, cost time: %f s", gi.Query.AppName, time.Since(startTime).Seconds())
 
 	return &GetOutput{
 		Tree:            resultTrie,
