@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"sync"
+	"time"
 
 	"github.com/pyroscope-io/pyroscope/pkg/model"
 	"github.com/pyroscope-io/pyroscope/pkg/model/appmetadata"
@@ -11,11 +13,32 @@ import (
 )
 
 type ApplicationMetadataService struct {
-	db *gorm.DB
+	db             *gorm.DB
+	processingApps *sync.Map
 }
 
-func NewApplicationMetadataService(db *gorm.DB) ApplicationMetadataService {
-	return ApplicationMetadataService{db: db}
+func NewApplicationMetadataService(db *gorm.DB) *ApplicationMetadataService {
+	svc := &ApplicationMetadataService{
+		db:             db,
+		processingApps: &sync.Map{},
+	}
+	go func() {
+		svc.initLoadingApps()
+	}()
+	return svc
+}
+
+func (svc ApplicationMetadataService) initLoadingApps() {
+	qry := url.Values{}
+	qry.Set("updateTime", time.Now().Add(-time.Hour*12).Format("2006-01-02 15:04:05"))
+	apps, err := svc.List(context.WithValue(context.Background(), "query", qry))
+	if err != nil {
+		return
+	}
+	for _, app := range apps {
+		segmentKey := app.ToSegmentKey().Normalized()
+		svc.processingApps.Store(segmentKey, struct{}{})
+	}
 }
 
 func (svc ApplicationMetadataService) List(ctx context.Context) (apps []appmetadata.ApplicationMetadata, err error) {
@@ -66,6 +89,10 @@ func (svc ApplicationMetadataService) Get(ctx context.Context, name string) (app
 }
 
 func (svc ApplicationMetadataService) CreateOrUpdate(ctx context.Context, application appmetadata.ApplicationMetadata) error {
+	segmentKey := application.ToSegmentKey().Normalized()
+	if _, ok := svc.processingApps.Load(segmentKey); ok {
+		return nil
+	}
 	if err := model.ValidateAppName(application.FQName); err != nil {
 		return err
 	}
@@ -73,7 +100,7 @@ func (svc ApplicationMetadataService) CreateOrUpdate(ctx context.Context, applic
 	tx := svc.db.WithContext(ctx)
 
 	// Only update the field if it's populated
-	return tx.Where(appmetadata.ApplicationMetadata{
+	if err := tx.Where(appmetadata.ApplicationMetadata{
 		FQName:      application.FQName,
 		ProjectID:   application.ProjectID,
 		ProjectName: application.ProjectName,
@@ -84,7 +111,11 @@ func (svc ApplicationMetadataService) CreateOrUpdate(ctx context.Context, applic
 		SpyName:     application.SpyName,
 		ServiceName: application.ServiceName,
 		PodIP:       application.PodIP,
-	}).Assign(application).FirstOrCreate(&appmetadata.ApplicationMetadata{}).Error
+	}).Assign(application).FirstOrCreate(&appmetadata.ApplicationMetadata{}).Error; err != nil {
+		return err
+	}
+	svc.processingApps.Store(segmentKey, struct{}{})
+	return nil
 }
 
 func (svc ApplicationMetadataService) Delete(ctx context.Context, name string) error {
