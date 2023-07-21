@@ -163,7 +163,7 @@ func (k *Key) ProfileID() (string, bool) {
 func AppSegmentKey(appName string) string { return appName + "{}" }
 
 func TreeKey(k string, depth int, unixTime int64) string {
-	return k + ":" + strconv.Itoa(depth) + ":" + strconv.FormatInt(unixTime, 10)
+	return k
 }
 
 func (k *Key) TreeKey(depth int, t time.Time) string {

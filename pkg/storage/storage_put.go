@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -95,8 +94,7 @@ func (s *Storage) Put(ctx context.Context, pi *PutInput) error {
 	//	s.dimensions.Put(key, r)
 	//}
 
-	skWithTime := fmt.Sprintf("%s:%d", sk, pi.EndTime.Unix())
-	r := s.segments.New(skWithTime)
+	r := s.segments.New(sk)
 
 	st := r.(*segment.Segment)
 	st.SetMetadata(metadata.Metadata{
@@ -129,6 +127,6 @@ func (s *Storage) Put(ctx context.Context, pi *PutInput) error {
 		return err
 	}
 
-	s.segments.Put(skWithTime, st)
+	s.segments.Put(sk, st)
 	return nil
 }
