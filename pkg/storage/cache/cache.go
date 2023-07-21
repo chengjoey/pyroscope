@@ -230,7 +230,7 @@ func (cache *Cache) LookupWithTimeLimit(key string, st, et time.Time, limit int)
 	var err error
 	interval := (et.Unix() - st.Unix()) / int64(limit)
 	err = cache.ch.View(func(conn clickhouse.Conn) error {
-		rows, err = conn.Query(context.Background(), "select first_value(k) as firstk, first_value(v) as v, toStartOfInterval(timestamp, INTERVAL "+fmt.Sprintf("%d", interval)+" second) as timestamp from "+cache.ch.FQDN()+"_all where k like ? and timestamp >= ? and timestamp <= ? group by timestamp order by timestamp asc", cache.prefix+key+"%", st, et)
+		rows, err = conn.Query(context.Background(), "select first_value(k) as firstk, first_value(v) as v, toStartOfInterval(timestamp, INTERVAL "+fmt.Sprintf("%d", interval)+" second) as timestamp from "+cache.ch.FQDN()+"_all where k = ? and timestamp >= ? and timestamp <= ? group by timestamp order by timestamp asc", cache.prefix+key, st, et)
 		return err
 	})
 	if err != nil {
