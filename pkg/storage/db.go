@@ -88,6 +88,7 @@ func (s *Storage) newClickHouse(name string, p Prefix, codec cache.Codec) (Click
 		MaxOpenConns:     chConfig.ClickhouseMaxOpenConns,
 		ConnMaxLifetime:  chConfig.ClickhouseConnMaxLifeTime,
 		ConnOpenStrategy: openStrategy,
+		Debug:            true,
 	}
 
 	ch, err := clickhouse.Open(options)
